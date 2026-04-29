@@ -174,9 +174,9 @@ class AgentLoopTests(SimpleTestCase):
                 )
 
     @patch("care_ai_search.agent.OpenAI")
-    def test_invalid_model_output_is_rejected(self, openai_cls):
+    def test_non_json_model_output_is_rejected(self, openai_cls):
         openai_cls.return_value.chat.completions.create.return_value = _completion(
-            content='{"unexpected": 1}'
+            content="not json at all"
         )
         with self.assertRaises(OutputValidationError):
             run_agent(

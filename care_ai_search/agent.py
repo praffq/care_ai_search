@@ -7,12 +7,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from openai import OpenAI
-from pydantic import ValidationError
 
-from care_ai_search.output_schema import (
-    InvalidResponseSchema,
-    build_pydantic_model,
-)
+from care_ai_search.output_schema import InvalidResponseSchema, validate_schema
 from care_ai_search.settings import plugin_settings
 from care_ai_search.tools import TOOLS
 
@@ -106,12 +102,8 @@ def run_agent(
     )
     chosen_model = model or plugin_settings.AI_DEFAULT_MODEL
 
-    # Build the pydantic model up-front so a malformed schema fails fast,
-    # before we call the model. Always rewrap the inner schema in the OpenAI
-    # ``response_format`` envelope so callers can pass shorthand / bare schemas
-    # without us forwarding a non-OpenAI shape to the API.
     try:
-        response_model = build_pydantic_model(output_format)
+        validate_schema(output_format)
     except InvalidResponseSchema as exc:
         raise OutputValidationError(f"invalid output_format: {exc}") from exc
     response_format = {
@@ -170,15 +162,13 @@ def run_agent(
 
         if not msg.tool_calls:
             try:
-                parsed = response_model.model_validate_json(msg.content or "{}")
-            except ValidationError as exc:
-                raise OutputValidationError(str(exc)) from exc
+                data = json.loads(msg.content or "{}")
             except json.JSONDecodeError as exc:
                 raise OutputValidationError(
                     f"model returned non-JSON content: {exc}"
                 ) from exc
             return AgentResult(
-                data=parsed.model_dump(mode="json"),
+                data=data,
                 model=chosen_model,
                 tool_call_count=tool_call_count,
                 latency_ms=int((time.monotonic() - started_at) * 1000),
