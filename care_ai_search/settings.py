@@ -1,12 +1,3 @@
-"""Plugin settings, mirrored after care_abdm.
-
-Read order: PLUGIN_CONFIGS dict in care/plug_config.py > env vars > DEFAULTS.
-
-Used as:
-    from care_ai_search.settings import plugin_settings
-    plugin_settings.AI_BASE_URL
-"""
-
 from typing import Any
 
 import environ

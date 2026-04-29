@@ -1,5 +1,3 @@
-"""Tool: get_active_medications."""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any

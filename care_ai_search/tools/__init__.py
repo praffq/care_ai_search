@@ -1,9 +1,3 @@
-"""Read-only FHIR tools exposed to the LLM agent.
-
-All tools are scoped to a single Encounter by the caller — the model
-cannot pass arbitrary encounter / patient ids. See `BaseTool.run`.
-"""
-
 from care_ai_search.tools.allergies import GetActiveAllergiesTool
 from care_ai_search.tools.base import BaseTool
 from care_ai_search.tools.conditions import (

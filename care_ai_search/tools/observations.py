@@ -1,5 +1,3 @@
-"""Tool: get_recent_observations."""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any

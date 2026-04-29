@@ -1,10 +1,3 @@
-"""Encounter resolution + (temporary) superuser-only gate.
-
-TODO: replace ``IsSuperuserOnly`` with a real permission check
-(e.g. ``AuthorizationController`` ``can_view_patient_obj`` /
-``can_view_encounter_obj``) before exposing this endpoint to non-admins.
-"""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING

@@ -1,5 +1,3 @@
-"""Tool: get_patient_demographics."""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any

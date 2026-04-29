@@ -1,5 +1,3 @@
-"""Tools: get_current_encounter, get_prior_encounters."""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any

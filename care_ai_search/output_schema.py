@@ -1,11 +1,3 @@
-"""JSON Schema → Pydantic model.
-
-Used to validate the agent's final structured output. We accept a JSON
-Schema in the request (matches the v3 spec — the FE owns the renderer
-schemas) and dynamically build a Pydantic model so we get rich error
-messages and type coercion for free.
-"""
-
 from __future__ import annotations
 
 from itertools import count

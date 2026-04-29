@@ -1,11 +1,3 @@
-"""Tools for active Conditions, split into diagnoses and symptoms.
-
-In CARE the same ``Condition`` model backs both diagnoses and symptoms;
-they are distinguished only by the ``category`` field, mirroring the split
-between ``DiagnosisViewSet`` and ``SymptomViewSet`` in core. Exposing two
-narrowly-scoped tools to the LLM is more reliable than one ambiguous tool.
-"""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
