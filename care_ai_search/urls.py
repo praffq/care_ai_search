@@ -1,5 +1,7 @@
 from django.urls import path
 
+from care_ai_search.api.viewsets import RunAIView
+
 urlpatterns = [
-    # Mounted at /api/care_ai_search/ by CARE's plugin loader.
+    path("run/", RunAIView.as_view(), name="care_ai_search-run"),
 ]

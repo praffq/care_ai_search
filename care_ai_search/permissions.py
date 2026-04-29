@@ -1,0 +1,44 @@
+"""Encounter resolution + (temporary) superuser-only gate.
+
+TODO: replace ``IsSuperuserOnly`` with a real permission check
+(e.g. ``AuthorizationController`` ``can_view_patient_obj`` /
+``can_view_encounter_obj``) before exposing this endpoint to non-admins.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+from uuid import UUID
+
+from django.shortcuts import get_object_or_404
+from rest_framework.permissions import IsAuthenticated
+
+from care.emr.models.encounter import Encounter
+
+if TYPE_CHECKING:
+    pass
+
+
+class IsSuperuserOnly(IsAuthenticated):
+    """Temporary gate: any superuser, no one else."""
+
+    message = (
+        "care_ai_search is restricted to superusers while permissions are wired up"
+    )
+
+    def has_permission(self, request, view) -> bool:
+        return super().has_permission(request, view) and bool(
+            getattr(request.user, "is_superuser", False)
+        )
+
+
+def resolve_encounter(encounter_external_id: str | UUID) -> Encounter:
+    """Look up the encounter, returning 404 if missing.
+
+    Auth is handled by ``IsSuperuserOnly`` on the view, so by the time we
+    get here the caller is already known to be a superuser.
+    """
+    return get_object_or_404(
+        Encounter.objects.select_related("patient", "facility", "current_location"),
+        external_id=encounter_external_id,
+    )

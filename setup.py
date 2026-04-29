@@ -10,6 +10,9 @@ with open("README.md") as readme_file:
 requirements = [
     "django",
     "djangorestframework",
+    "django-environ",
+    "openai>=1.0.0",
+    "jsonschema",
 ]
 
 test_requirements = []
