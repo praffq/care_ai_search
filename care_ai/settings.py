@@ -6,7 +6,7 @@ from django.core.exceptions import ImproperlyConfigured
 from django.core.signals import setting_changed
 from django.dispatch import receiver
 
-from care_ai_search.apps import PLUGIN_NAME
+from care_ai.apps import PLUGIN_NAME
 
 env = environ.Env()
 

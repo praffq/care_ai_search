@@ -1,7 +1,7 @@
 """Tests for the agent loop with a mocked OpenAI client.
 
 Lives inside the plugin so it ships with the package and runs under
-`make test path=care_ai_search` from the host CARE repo.
+`make test path=care_ai` from the host CARE repo.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase
 
-from care_ai_search.agent import (
+from care_ai.agent import (
     AgentError,
     OutputValidationError,
     ToolCallBudgetExceededError,
@@ -66,7 +66,7 @@ def _fake_encounter():
 
 def _patched_settings(api_key="sk-test"):
     return patch(
-        "care_ai_search.agent.plugin_settings",
+        "care_ai.agent.plugin_settings",
         SimpleNamespace(
             AI_API_KEY=api_key,
             AI_BASE_URL="https://api.openai.test/v1",
@@ -85,7 +85,7 @@ class AgentLoopTests(SimpleTestCase):
         self.addCleanup(p.stop)
         p.start()
 
-    @patch("care_ai_search.agent.OpenAI")
+    @patch("care_ai.agent.OpenAI")
     def test_returns_validated_data_when_model_emits_no_tool_calls(self, openai_cls):
         openai_cls.return_value.chat.completions.create.return_value = _completion(
             content='{"summary": "patient stable"}'
@@ -101,7 +101,7 @@ class AgentLoopTests(SimpleTestCase):
         self.assertEqual(result.tool_call_count, 0)
         self.assertGreater(result.input_tokens, 0)
 
-    @patch("care_ai_search.agent.OpenAI")
+    @patch("care_ai.agent.OpenAI")
     def test_dispatches_tool_call_then_returns_final_answer(self, openai_cls):
         client = openai_cls.return_value
         client.chat.completions.create.side_effect = [
@@ -109,7 +109,7 @@ class AgentLoopTests(SimpleTestCase):
             _completion(content='{"summary": "30y male, O+"}'),
         ]
 
-        with patch("care_ai_search.agent.TOOLS") as tools_mock:
+        with patch("care_ai.agent.TOOLS") as tools_mock:
             tool_obj = MagicMock()
             tool_obj.run.return_value = {"age_years": 30}
             tool_obj.openai_schema.return_value = {
@@ -140,12 +140,12 @@ class AgentLoopTests(SimpleTestCase):
         called_kwargs = tool_obj.run.call_args.kwargs
         self.assertIn("encounter", called_kwargs)
 
-    @patch("care_ai_search.agent.OpenAI")
+    @patch("care_ai.agent.OpenAI")
     def test_tool_call_budget_is_enforced(self, openai_cls):
         infinite = _completion(tool_calls=[_tool_call("c", "get_patient_demographics")])
         openai_cls.return_value.chat.completions.create.return_value = infinite
 
-        with patch("care_ai_search.agent.TOOLS") as tools_mock:
+        with patch("care_ai.agent.TOOLS") as tools_mock:
             tool_obj = MagicMock()
             tool_obj.run.return_value = {"ok": True}
             tool_obj.openai_schema.return_value = {
@@ -173,7 +173,7 @@ class AgentLoopTests(SimpleTestCase):
                     max_tool_calls=2,
                 )
 
-    @patch("care_ai_search.agent.OpenAI")
+    @patch("care_ai.agent.OpenAI")
     def test_non_json_model_output_is_rejected(self, openai_cls):
         openai_cls.return_value.chat.completions.create.return_value = _completion(
             content="not json at all"
@@ -201,7 +201,7 @@ class AgentLoopTests(SimpleTestCase):
                 output_format={"type": "array", "items": {"type": "string"}},
             )
 
-    @patch("care_ai_search.agent.OpenAI")
+    @patch("care_ai.agent.OpenAI")
     def test_json_schema_is_wrapped_for_openai(self, openai_cls):
         openai_cls.return_value.chat.completions.create.return_value = _completion(
             content='{"encounter_id": "e1", "allergies": ["peanut"]}'

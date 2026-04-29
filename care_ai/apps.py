@@ -1,6 +1,6 @@
 from django.apps import AppConfig
 
-PLUGIN_NAME = "care_ai_search"
+PLUGIN_NAME = "care_ai"
 
 
 class CareAiSearchConfig(AppConfig):

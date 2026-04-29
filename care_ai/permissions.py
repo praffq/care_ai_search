@@ -16,7 +16,7 @@ class IsSuperuserOnly(IsAuthenticated):
     """Temporary gate: any superuser, no one else."""
 
     message = (
-        "care_ai_search is restricted to superusers while permissions are wired up"
+        "care_ai is restricted to superusers while permissions are wired up"
     )
 
     def has_permission(self, request, view) -> bool:

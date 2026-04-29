@@ -3,16 +3,16 @@ import hashlib
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from care_ai_search.agent import (
+from care_ai.agent import (
     AgentError,
     AgentTimeoutError,
     OutputValidationError,
     ToolCallBudgetExceededError,
     run_agent,
 )
-from care_ai_search.api.serializers import RunAIRequestSerializer
-from care_ai_search.models import AIRunAuditLog
-from care_ai_search.permissions import IsSuperuserOnly, resolve_encounter
+from care_ai.api.serializers import RunAIRequestSerializer
+from care_ai.models import AIRunAuditLog
+from care_ai.permissions import IsSuperuserOnly, resolve_encounter
 
 
 def _sha256(text: str) -> str:

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from care_ai_search.tools._helpers import now_minus, serialize_list, serialize_one
-from care_ai_search.tools.base import BaseTool
+from care_ai.tools._helpers import now_minus, serialize_list, serialize_one
+from care_ai.tools.base import BaseTool
 
 if TYPE_CHECKING:
     from care.emr.models.encounter import Encounter

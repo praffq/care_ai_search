@@ -8,9 +8,9 @@ from typing import TYPE_CHECKING, Any
 
 from openai import OpenAI
 
-from care_ai_search.output_schema import InvalidResponseSchema, validate_schema
-from care_ai_search.settings import plugin_settings
-from care_ai_search.tools import TOOLS
+from care_ai.output_schema import InvalidResponseSchema, validate_schema
+from care_ai.settings import plugin_settings
+from care_ai.tools import TOOLS
 
 if TYPE_CHECKING:
     from care.emr.models.encounter import Encounter

@@ -1,11 +1,11 @@
-# care_ai_search
+# care_ai
 
 A basic AI search plugin for [OHC CARE](https://github.com/ohcnetwork/care). Given a CARE encounter id and a natural-language prompt, it lets an OpenAI model fetch read-only data about the patient and encounter (demographics, allergies, diagnoses, symptoms, medications, observations, prior encounters) via a small set of tools, and returns a structured JSON response that conforms to a JSON Schema you supply.
 
 ## Endpoint
 
 ```
-POST /api/care_ai_search/v1/run/
+POST /api/care_ai/v1/run/
 ```
 
 Auth: superuser only
@@ -18,14 +18,14 @@ Auth: superuser only
    from plugs.manager import PlugManager
    from plugs.plug import Plug
 
-   care_ai_search_plug = Plug(
-       name="care_ai_search",
-       package_name="git+https://github.com/praffq/care_ai_search.git",
+   care_ai_plug = Plug(
+       name="care_ai",
+       package_name="git+https://github.com/praffq/care_ai.git",
        version="@main",
        configs={},
    )
 
-   plugs = [care_ai_search_plug]
+   plugs = [care_ai_plug]
    manager = PlugManager(plugs)
    ```
 

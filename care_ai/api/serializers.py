@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from care_ai_search.settings import plugin_settings
+from care_ai.settings import plugin_settings
 
 
 class RunAIRequestSerializer(serializers.Serializer):
