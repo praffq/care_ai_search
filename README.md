@@ -12,7 +12,7 @@ Auth: superuser only
 
 ## Installation
 
-1. Add the plugin to `care/plug_config.py`:
+1. Add to `care/plug_config.py`:
 
    ```python
    from plugs.manager import PlugManager
@@ -24,12 +24,11 @@ Auth: superuser only
        version="@main",
        configs={},
    )
-
    plugs = [care_ai_plug]
    manager = PlugManager(plugs)
    ```
 
-2. Set the required environment variables in `docker/.local.env` (or your prod env):
+2. Set env vars in `docker/.local.env` (or your prod env):
 
    ```env
    AI_API_KEY=sk-...
@@ -37,7 +36,7 @@ Auth: superuser only
    AI_DEFAULT_MODEL=gpt-5.4
    AI_MAX_TOOL_CALLS=10
    AI_TIMEOUT_SECONDS=30
-   AI_PROMPT_MAX_CHARS=2000
+   AI_PROMPT_MAX_CHARS=8000
    ```
 
 3. Rebuild and restart CARE so the plugin is installed into the image:
@@ -59,6 +58,9 @@ Auth: superuser only
 | `AI_MAX_TOOL_CALLS` | `10` | Per-request tool-call budget |
 | `AI_TIMEOUT_SECONDS` | `30` | Hard wall-clock timeout for the agent loop |
 | `AI_PROMPT_MAX_CHARS` | `8000` | Max length for `prompt` |
+| `AI_SYSTEM_PROMPT` | _(clinical default)_ | System message; override to retune behavior |
+| `AI_OBSERVATION_ROW_LIMIT` | `200` | Cap on observation tool output |
+| `AI_ENCOUNTER_ROW_LIMIT` | `50` | Cap on prior-encounters tool output |
 
 ## License
 

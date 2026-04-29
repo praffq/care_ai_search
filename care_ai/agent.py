@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from openai import OpenAI
+from openai import APITimeoutError, OpenAI, RateLimitError
 
 from care_ai.output_schema import InvalidResponseSchema, validate_schema
 from care_ai.settings import plugin_settings
@@ -23,27 +23,35 @@ class AgentError(Exception):
 
 
 class ToolCallBudgetExceededError(AgentError):
-    pass
+    """Raised when the model keeps calling tools past `max_tool_iterations`."""
 
 
 class AgentTimeoutError(AgentError):
-    pass
+    """Raised when the local wall-clock budget is exhausted."""
+
+
+class UpstreamTimeoutError(AgentError):
+    """Raised when the OpenAI client itself times out."""
+
+
+class RateLimitedError(AgentError):
+    """Raised when the upstream LLM provider rate-limits the request."""
 
 
 class OutputValidationError(AgentError):
-    pass
+    """Raised when the model's final answer doesn't match `response_schema`."""
 
 
 @dataclass
 class AgentResult:
-    data: dict[str, Any]
+    output: Any
     model: str
     tool_call_count: int
-    latency_ms: int
+    duration_ms: int
     raw_response_text: str
     input_tokens: int = 0
     output_tokens: int = 0
-    tool_trace: list[dict[str, Any]] = field(default_factory=list)
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
 
 
 def _build_client() -> OpenAI:
@@ -78,49 +86,54 @@ def _dispatch_tool_call(encounter: Encounter, name: str, raw_args: str) -> Any:
         return {"error": f"tool {name} raised an internal error"}
 
 
+def _build_response_format(response_schema: dict[str, Any] | None):
+    if response_schema is None:
+        return None
+    try:
+        validate_schema(response_schema)
+    except InvalidResponseSchema as exc:
+        raise OutputValidationError(f"invalid response_schema: {exc}") from exc
+    return {
+        "type": "json_schema",
+        "json_schema": {"name": "agent_response", "schema": response_schema},
+    }
+
+
 def run_agent(
     *,
     encounter: Encounter,
     prompt: str,
-    output_format: dict[str, Any],
+    response_schema: dict[str, Any] | None = None,
     model: str | None = None,
-    max_tool_calls: int | None = None,
+    max_tool_iterations: int | None = None,
 ) -> AgentResult:
-    """Run the tool-calling loop until the model produces a structured response.
+    """Run the tool-calling loop until the model produces a final response.
 
     Raises:
         AgentError: API key missing or other unrecoverable issue.
         ToolCallBudgetExceededError: model kept calling tools past the cap.
         AgentTimeoutError: total wall-clock time exceeded.
-        OutputValidationError: model's final answer didn't match output_format.
+        UpstreamTimeoutError: the OpenAI HTTP client itself timed out.
+        RateLimitedError: upstream provider rate-limited the request.
+        OutputValidationError: model's final answer didn't match response_schema.
     """
     started_at = time.monotonic()
     timeout_s = plugin_settings.AI_TIMEOUT_SECONDS
     cap = min(
-        max_tool_calls or plugin_settings.AI_MAX_TOOL_CALLS,
+        max_tool_iterations or plugin_settings.AI_MAX_TOOL_CALLS,
         plugin_settings.AI_MAX_TOOL_CALLS,
     )
     chosen_model = model or plugin_settings.AI_DEFAULT_MODEL
 
-    try:
-        validate_schema(output_format)
-    except InvalidResponseSchema as exc:
-        raise OutputValidationError(f"invalid output_format: {exc}") from exc
-    response_format = {
-        "type": "json_schema",
-        "json_schema": {"name": "agent_response", "schema": output_format},
-    }
+    response_format = _build_response_format(response_schema)
 
     client = _build_client()
     tool_schemas = [t.openai_schema() for t in TOOLS.values()]
     messages: list[dict[str, Any]] = [
-        {"role": "system", "content": prompt},
-        {
-            "role": "user",
-            "content": f"Encounter id (already scoped): {encounter.external_id}",
-        },
+        {"role": "system", "content": plugin_settings.AI_SYSTEM_PROMPT},
+        {"role": "user", "content": prompt},
     ]
-    tool_trace: list[dict[str, Any]] = []
+    tool_calls_trace: list[dict[str, Any]] = []
     tool_call_count = 0
     input_tokens = output_tokens = 0
 
@@ -128,19 +141,27 @@ def run_agent(
         if time.monotonic() - started_at > timeout_s:
             raise AgentTimeoutError(f"agent loop exceeded {timeout_s}s")
 
-        response = client.chat.completions.create(
-            model=chosen_model,
-            messages=messages,
-            tools=tool_schemas,
-            response_format=response_format,
-        )
+        request_kwargs: dict[str, Any] = {
+            "model": chosen_model,
+            "messages": messages,
+            "tools": tool_schemas,
+        }
+        if response_format is not None:
+            request_kwargs["response_format"] = response_format
+
+        try:
+            response = client.chat.completions.create(**request_kwargs)
+        except APITimeoutError as exc:
+            raise UpstreamTimeoutError(str(exc)) from exc
+        except RateLimitError as exc:
+            raise RateLimitedError(str(exc)) from exc
+
         usage = getattr(response, "usage", None)
         if usage is not None:
             input_tokens += getattr(usage, "prompt_tokens", 0) or 0
             output_tokens += getattr(usage, "completion_tokens", 0) or 0
 
         msg = response.choices[0].message
-        # Append the assistant turn so subsequent tool messages have a parent.
         messages.append(
             {
                 "role": "assistant",
@@ -161,21 +182,25 @@ def run_agent(
         )
 
         if not msg.tool_calls:
-            try:
-                data = json.loads(msg.content or "{}")
-            except json.JSONDecodeError as exc:
-                raise OutputValidationError(
-                    f"model returned non-JSON content: {exc}"
-                ) from exc
+            text = msg.content or ""
+            if response_format is None:
+                output: Any = text
+            else:
+                try:
+                    output = json.loads(text or "{}")
+                except json.JSONDecodeError as exc:
+                    raise OutputValidationError(
+                        f"model returned non-JSON content: {exc}"
+                    ) from exc
             return AgentResult(
-                data=data,
+                output=output,
                 model=chosen_model,
                 tool_call_count=tool_call_count,
-                latency_ms=int((time.monotonic() - started_at) * 1000),
-                raw_response_text=msg.content or "",
+                duration_ms=int((time.monotonic() - started_at) * 1000),
+                raw_response_text=text,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
-                tool_trace=tool_trace,
+                tool_calls=tool_calls_trace,
             )
 
         for tc in msg.tool_calls:
@@ -185,7 +210,7 @@ def run_agent(
             result = _dispatch_tool_call(
                 encounter, tc.function.name, tc.function.arguments
             )
-            tool_trace.append(
+            tool_calls_trace.append(
                 {"name": tc.function.name, "arguments": tc.function.arguments}
             )
             messages.append(

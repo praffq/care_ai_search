@@ -38,7 +38,7 @@ def _tool_call(call_id, name, arguments="{}"):
     )
 
 
-SIMPLE_OUTPUT_FORMAT = {
+SIMPLE_RESPONSE_SCHEMA = {
     "type": "object",
     "properties": {"summary": {"type": "string"}},
     "required": ["summary"],
@@ -75,6 +75,7 @@ def _patched_settings(api_key="sk-test"):
             AI_DEFAULT_MODEL="gpt-test",
             AI_ALLOWED_MODELS=["gpt-test"],
             AI_PROMPT_MAX_CHARS=2000,
+            AI_SYSTEM_PROMPT="system prompt under test",
         ),
     )
 
@@ -94,12 +95,28 @@ class AgentLoopTests(SimpleTestCase):
         result = run_agent(
             encounter=_fake_encounter(),
             prompt="Summarise.",
-            output_format=SIMPLE_OUTPUT_FORMAT,
+            response_schema=SIMPLE_RESPONSE_SCHEMA,
         )
 
-        self.assertEqual(result.data, {"summary": "patient stable"})
+        self.assertEqual(result.output, {"summary": "patient stable"})
         self.assertEqual(result.tool_call_count, 0)
         self.assertGreater(result.input_tokens, 0)
+
+    @patch("care_ai.agent.OpenAI")
+    def test_returns_plain_text_when_no_response_schema(self, openai_cls):
+        openai_cls.return_value.chat.completions.create.return_value = _completion(
+            content="Patient is stable."
+        )
+
+        result = run_agent(
+            encounter=_fake_encounter(),
+            prompt="Summarise.",
+            response_schema=None,
+        )
+
+        self.assertEqual(result.output, "Patient is stable.")
+        sent_kwargs = openai_cls.return_value.chat.completions.create.call_args.kwargs
+        self.assertNotIn("response_format", sent_kwargs)
 
     @patch("care_ai.agent.OpenAI")
     def test_dispatches_tool_call_then_returns_final_answer(self, openai_cls):
@@ -132,10 +149,12 @@ class AgentLoopTests(SimpleTestCase):
             result = run_agent(
                 encounter=_fake_encounter(),
                 prompt="brief",
-                output_format=SIMPLE_OUTPUT_FORMAT,
+                response_schema=SIMPLE_RESPONSE_SCHEMA,
             )
 
         self.assertEqual(result.tool_call_count, 1)
+        self.assertEqual(len(result.tool_calls), 1)
+        self.assertEqual(result.tool_calls[0]["name"], "get_patient_demographics")
         tool_obj.run.assert_called_once()
         called_kwargs = tool_obj.run.call_args.kwargs
         self.assertIn("encounter", called_kwargs)
@@ -169,8 +188,8 @@ class AgentLoopTests(SimpleTestCase):
                 run_agent(
                     encounter=_fake_encounter(),
                     prompt="x",
-                    output_format=SIMPLE_OUTPUT_FORMAT,
-                    max_tool_calls=2,
+                    response_schema=SIMPLE_RESPONSE_SCHEMA,
+                    max_tool_iterations=2,
                 )
 
     @patch("care_ai.agent.OpenAI")
@@ -182,7 +201,7 @@ class AgentLoopTests(SimpleTestCase):
             run_agent(
                 encounter=_fake_encounter(),
                 prompt="x",
-                output_format=SIMPLE_OUTPUT_FORMAT,
+                response_schema=SIMPLE_RESPONSE_SCHEMA,
             )
 
     def test_missing_api_key_raises_agent_error(self):
@@ -190,15 +209,15 @@ class AgentLoopTests(SimpleTestCase):
             run_agent(
                 encounter=_fake_encounter(),
                 prompt="x",
-                output_format=SIMPLE_OUTPUT_FORMAT,
+                response_schema=SIMPLE_RESPONSE_SCHEMA,
             )
 
-    def test_malformed_output_format_fails_fast(self):
+    def test_malformed_response_schema_fails_fast(self):
         with self.assertRaises(OutputValidationError):
             run_agent(
                 encounter=_fake_encounter(),
                 prompt="x",
-                output_format={"type": "array", "items": {"type": "string"}},
+                response_schema={"type": "array", "items": {"type": "string"}},
             )
 
     @patch("care_ai.agent.OpenAI")
@@ -218,10 +237,12 @@ class AgentLoopTests(SimpleTestCase):
         result = run_agent(
             encounter=_fake_encounter(),
             prompt="x",
-            output_format=schema,
+            response_schema=schema,
         )
 
-        self.assertEqual(result.data, {"encounter_id": "e1", "allergies": ["peanut"]})
+        self.assertEqual(
+            result.output, {"encounter_id": "e1", "allergies": ["peanut"]}
+        )
         sent = openai_cls.return_value.chat.completions.create.call_args.kwargs[
             "response_format"
         ]
