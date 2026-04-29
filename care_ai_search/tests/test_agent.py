@@ -39,16 +39,10 @@ def _tool_call(call_id, name, arguments="{}"):
 
 
 SIMPLE_OUTPUT_FORMAT = {
-    "type": "json_schema",
-    "json_schema": {
-        "name": "brief",
-        "schema": {
-            "type": "object",
-            "properties": {"summary": {"type": "string"}},
-            "required": ["summary"],
-            "additionalProperties": False,
-        },
-    },
+    "type": "object",
+    "properties": {"summary": {"type": "string"}},
+    "required": ["summary"],
+    "additionalProperties": False,
 }
 
 
@@ -204,34 +198,32 @@ class AgentLoopTests(SimpleTestCase):
             run_agent(
                 encounter=_fake_encounter(),
                 prompt="x",
-                # type=array at root is rejected — must be type=object
-                output_format={
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": "bad",
-                        "schema": {"type": "array", "items": {"type": "string"}},
-                    },
-                },
+                output_format={"type": "array", "items": {"type": "string"}},
             )
 
     @patch("care_ai_search.agent.OpenAI")
-    def test_shorthand_output_format_is_accepted(self, openai_cls):
+    def test_json_schema_is_wrapped_for_openai(self, openai_cls):
         openai_cls.return_value.chat.completions.create.return_value = _completion(
             content='{"encounter_id": "e1", "allergies": ["peanut"]}'
         )
 
+        schema = {
+            "type": "object",
+            "properties": {
+                "encounter_id": {"type": "string"},
+                "allergies": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["encounter_id", "allergies"],
+        }
         result = run_agent(
             encounter=_fake_encounter(),
             prompt="x",
-            # Shorthand: a JSON example, not a JSON Schema
-            output_format={"encounter_id": "string", "allergies": ["string"]},
+            output_format=schema,
         )
 
         self.assertEqual(result.data, {"encounter_id": "e1", "allergies": ["peanut"]})
-        # The agent must rewrap shorthand into the OpenAI response_format envelope
-        # before calling the API, never forward the raw shorthand.
         sent = openai_cls.return_value.chat.completions.create.call_args.kwargs[
             "response_format"
         ]
         self.assertEqual(sent["type"], "json_schema")
-        self.assertEqual(sent["json_schema"]["schema"]["type"], "object")
+        self.assertEqual(sent["json_schema"]["schema"], schema)

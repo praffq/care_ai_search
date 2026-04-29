@@ -12,7 +12,6 @@ from pydantic import ValidationError
 from care_ai_search.output_schema import (
     InvalidResponseSchema,
     build_pydantic_model,
-    extract_schema,
 )
 from care_ai_search.settings import plugin_settings
 from care_ai_search.tools import TOOLS
@@ -112,13 +111,12 @@ def run_agent(
     # ``response_format`` envelope so callers can pass shorthand / bare schemas
     # without us forwarding a non-OpenAI shape to the API.
     try:
-        inner_schema = extract_schema(output_format)
-        response_model = build_pydantic_model(inner_schema)
+        response_model = build_pydantic_model(output_format)
     except InvalidResponseSchema as exc:
         raise OutputValidationError(f"invalid output_format: {exc}") from exc
     response_format = {
         "type": "json_schema",
-        "json_schema": {"name": "agent_response", "schema": inner_schema},
+        "json_schema": {"name": "agent_response", "schema": output_format},
     }
 
     client = _build_client()
